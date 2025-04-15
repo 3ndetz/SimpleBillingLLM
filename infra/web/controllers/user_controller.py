@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from core.use_cases.user_use_cases import UserUseCases
-from infrastructure.db.user_repository_impl import UserRepositoryImpl
+from infra.db.user_repository_impl import UserRepositoryImpl
 
 router = APIRouter()
 user_repository = UserRepositoryImpl()

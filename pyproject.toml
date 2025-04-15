@@ -1,0 +1,15 @@
+[project]
+name = "billingservicellm"
+authors = [
+    {name = "Maksim Beliaev", email = "beliaev.m.s@gmail.com"},
+    {name = "Bo Yang", email = "boy@kth.se"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+
+dependencies = [
+    "fastapi==0.68.0",
+    "uvicorn==0.15.0",
+]
