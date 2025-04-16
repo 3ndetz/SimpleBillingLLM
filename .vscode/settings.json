@@ -1,0 +1,15 @@
+{
+    "dbcode.connections": [
+        {
+            "connectionId": "HT5CzfVVlpC4MDCMW-sb5",
+            "name": "billing",
+            "driver": "sqlite",
+            "socket": "SimpleBillingLLM/data/billing_llm.db",
+            "readOnly": false,
+            "driverOptions": {
+                "extensions": []
+            },
+            "connectionType": "socket"
+        }
+    ]
+}

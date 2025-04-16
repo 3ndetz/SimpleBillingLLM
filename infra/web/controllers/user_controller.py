@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 from core.use_cases.user_use_cases import UserUseCases
-from infra.db.user_repository_impl import UserRepositoryImpl
+from infra.db.user_repository_impl import SQLiteUserRepository
 
 router = APIRouter()
-user_repository = UserRepositoryImpl()
+user_repository = SQLiteUserRepository()
 user_use_cases = UserUseCases(user_repository)
 
 @router.post("/users")
