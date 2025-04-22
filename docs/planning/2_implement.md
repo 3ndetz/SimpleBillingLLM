@@ -65,15 +65,15 @@ graph TD
 
     MainApp --> Settings
     MainApp --> InitializeDB
-    MainApp --> UserUseCases %% Potentially remove if all access is via API %%
+    MainApp --> UserUseCases
     UserUseCases --> UserRepository
     UserController --> UserUseCases
     UserRepositoryImpl -- Implements --> UserRepository
     UserRepositoryImpl --> DBFile
     InitializeDB --> DBFile
     %% TelegramBot --> UserUseCases %% <-- Removed direct link
-    TelegramBot --> Client             %% <-- Added link to API Client
-    Client --> UserController          %% <-- API Client talks to Web Controllers
+    TelegramBot --> Client
+    Client --> UserController
 
 
     %% TODOs %%

@@ -1,22 +1,25 @@
 # core/entities/prediction.py
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Optional
 import uuid
 
-@dataclass
-class Prediction:
+class Prediction(BaseModel):
     """Represents a prediction request and its result."""
-    id: int | None = None # Database ID
-    uuid: str = field(default_factory=lambda: str(uuid.uuid4())) # Unique identifier for API access
-    user_id: int | None = None # Foreign key to User
-    model_id: int | None = None # Foreign key to Model
-    input_text: str | None = None
-    output_text: str | None = None
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    total_cost: float | None = None
+    id: Optional[int] = None # Database ID
+    uuid: str = Field(default_factory=lambda: str(uuid.uuid4())) # Unique identifier for API access
+    user_id: Optional[int] = None # Foreign key to User
+    model_id: Optional[int] = None # Foreign key to Model
+    input_text: Optional[str] = None
+    output_text: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_cost: Optional[float] = None
     status: str = 'pending' # e.g., pending, processing, completed, failed
-    created_at: datetime | None = None
-    completed_at: datetime | None = None
-    queue_time: int | None = None # Time spent in queue (ms)
-    process_time: int | None = None # Time spent processing (ms)
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    queue_time: Optional[int] = None # Time spent in queue (ms)
+    process_time: Optional[int] = None # Time spent processing (ms)
+
+    # class Config:
+    #     orm_mode = True
