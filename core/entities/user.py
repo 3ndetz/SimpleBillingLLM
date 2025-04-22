@@ -1,12 +1,18 @@
 # core/entities/user.py
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Optional
 
-@dataclass
-class User:
+
+class User(BaseModel):
     """Represents a user in the system."""
-    id: int | None = None  # Database ID, None if not yet persisted
-    name: str | None = None # Name from Telegram
-    telegram_id: str | None = None # Telegram User ID (unique)
-    balance: float = 0.0
-    created_at: datetime | None = None # Set when loaded from DB or upon creation logic
+    id: Optional[int] = None  # Database ID, None if not yet persisted
+    name: Optional[str] = None # Name from Telegram
+    telegram_id: Optional[str] = None # Unique Telegram User ID
+    balance: float = 0.0 # User's current balance
+    created_at: Optional[datetime] = None # Timestamp of user creation
+    updated_at: Optional[datetime] = None # Timestamp of last update
+
+    # Add Pydantic config if needed for ORM mode or other features later
+    # class Config:
+    #     orm_mode = True

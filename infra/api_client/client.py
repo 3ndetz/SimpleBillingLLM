@@ -1,4 +1,5 @@
 # infra/api_client/client.py
+import asyncio
 import httpx
 import logging
 import os
@@ -7,6 +8,7 @@ from typing import Optional, Dict, Any
 # Assuming the FastAPI backend will run locally for now
 # You might want to move this to config later
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/v1")
+
 
 class ApiClient:
     """Client for interacting with the SimpleBillingLLM FastAPI backend."""
@@ -24,76 +26,77 @@ class ApiClient:
 
     async def get_or_create_user(self, telegram_id: str, name: str) -> Optional[Dict[str, Any]]:
         """Gets user info from the API, creating the user if they don't exist."""
+        # Endpoint matches the controller
         endpoint = "/users/"
         payload = {"telegram_id": telegram_id, "name": name}
         logging.info(f"Calling API: POST {endpoint} for telegram_id={telegram_id}")
 
-        # --- Placeholder Logic --- TODO: Replace with actual API call
-        logging.warning("API CALL MOCKED: get_or_create_user")
-        # Simulate API response for a new or existing user
-        # In a real scenario, you'd handle potential API errors (4xx, 5xx)
-        # and parse the actual JSON response.
-        mock_response = {
-            "id": 123, # Example DB ID from API
-            "name": name,
-            "telegram_id": telegram_id,
-            "balance": 10.0 if telegram_id != "123456789" else 100.0, # Simulate different balances
-            "created_at": "2025-04-16T10:00:00Z" # Example timestamp
-        }
-        return mock_response
-        # --- End Placeholder Logic ---
-
-        # --- Actual API Call (when backend is ready) ---
-        # try:
-        #     response = await self._client.post(endpoint, json=payload)
-        #     response.raise_for_status() # Raise exception for 4xx/5xx errors
-        #     user_data = response.json()
-        #     logging.info(f"API Response for {telegram_id}: {user_data}")
-        #     return user_data
-        # except httpx.RequestError as e:
-        #     logging.error(f"API request failed for get_or_create_user({telegram_id}): {e}")
-        #     return None
-        # except httpx.HTTPStatusError as e:
-        #     logging.error(f"API returned error for get_or_create_user({telegram_id}): {e.response.status_code} - {e.response.text}")
-        #     return None
-        # except Exception as e:
-        #     logging.exception(f"Unexpected error during API call for get_or_create_user({telegram_id}): {e}")
-        #     return None
+        # --- Actual API Call --- TODO: Replace with actual API call - *DONE*
+        try:
+            response = await self._client.post(endpoint, json=payload)
+            # Raise exception for 4xx/5xx errors
+            response.raise_for_status()
+            user_data = response.json()
+            logging.info(f"API Response for {telegram_id}: {user_data}")
+            return user_data
+        except httpx.RequestError as e:
+            logging.error(
+                f"API request failed for get_or_create_user({telegram_id}): {e}"
+            )
+            return None
+        except httpx.HTTPStatusError as e:
+            logging.error(
+                f"API returned error for get_or_create_user({telegram_id}): "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            return None
+        except Exception as e:
+            logging.exception(
+                f"Unexpected error during API call for "
+                f"get_or_create_user({telegram_id}): {e}"
+            )
+            return None
         # --- End Actual API Call ---
 
     async def get_user_balance(self, telegram_id: str) -> Optional[float]:
         """Gets the user's current balance from the API."""
+        # Endpoint matches the controller
         endpoint = f"/users/by-telegram/{telegram_id}/balance"
         logging.info(f"Calling API: GET {endpoint}")
 
-        # --- Placeholder Logic --- TODO: Replace with actual API call
-        logging.warning("API CALL MOCKED: get_user_balance")
-        # Simulate API response
-        mock_balance = 10.0 if telegram_id != "123456789" else 100.0 # Consistent with above mock
-        return mock_balance
-        # --- End Placeholder Logic ---
-
-        # --- Actual API Call (when backend is ready) ---
-        # try:
-        #     response = await self._client.get(endpoint)
-        #     response.raise_for_status()
-        #     data = response.json()
-        #     balance = data.get("balance")
-        #     logging.info(f"API Response for balance ({telegram_id}): {balance}")
-        #     return balance if isinstance(balance, (int, float)) else None
-        # except httpx.RequestError as e:
-        #     logging.error(f"API request failed for get_user_balance({telegram_id}): {e}")
-        #     return None
-        # except httpx.HTTPStatusError as e:
-        #     # Handle 404 Not Found specifically if needed
-        #     if e.response.status_code == 404:
-        #         logging.warning(f"User {telegram_id} not found via API for balance check.")
-        #     else:
-        #         logging.error(f"API returned error for get_user_balance({telegram_id}): {e.response.status_code} - {e.response.text}")
-        #     return None
-        # except Exception as e:
-        #     logging.exception(f"Unexpected error during API call for get_user_balance({telegram_id}): {e}")
-        #     return None
+        # --- Actual API Call --- TODO: Replace with actual API call - *DONE*
+        try:
+            response = await self._client.get(endpoint)
+            response.raise_for_status()
+            data = response.json()
+            # Extract balance from the response structure defined in controller
+            balance = data.get("balance")
+            logging.info(f"API Response for balance ({telegram_id}): {balance}")
+            # Ensure balance is a number before returning
+            return balance if isinstance(balance, (int, float)) else None
+        except httpx.RequestError as e:
+            logging.error(
+                f"API request failed for get_user_balance({telegram_id}): {e}"
+            )
+            return None
+        except httpx.HTTPStatusError as e:
+            # Handle 404 Not Found specifically if needed
+            if e.response.status_code == 404:
+                logging.warning(
+                    f"User {telegram_id} not found via API for balance check."
+                )
+            else:
+                logging.error(
+                    f"API returned error for get_user_balance({telegram_id}): "
+                    f"{e.response.status_code} - {e.response.text}"
+                )
+            return None
+        except Exception as e:
+            logging.exception(
+                f"Unexpected error during API call for "
+                f"get_user_balance({telegram_id}): {e}"
+            )
+            return None
         # --- End Actual API Call ---
 
     # TODO: Add methods for creating predictions, getting prediction status, etc.
@@ -103,22 +106,33 @@ async def _test_client():
     logging.basicConfig(level=logging.INFO)
     client = ApiClient()
     print("--- Testing get_or_create_user (new) ---")
-    user1 = await client.get_or_create_user("test_tg_123", "Test User One")
+    # Use a unique ID for testing creation
+    test_id_new = f"test_tg_{asyncio.get_event_loop().time()}"
+    user1 = await client.get_or_create_user(test_id_new, "Test User New")
     print(user1)
 
-    print("--- Testing get_or_create_user (existing) ---")
-    user2 = await client.get_or_create_user("123456789", "Existing Test User")
+    print("--- Testing get_or_create_user (existing - assuming ID 1 exists or was created) ---")
+    # Use an ID likely to exist if the API/DB is running
+    test_id_existing = "123456789" # Or use test_id_new if you run test immediately after
+    user2 = await client.get_or_create_user(test_id_existing, "Existing Test User")
     print(user2)
 
     print("--- Testing get_user_balance (new) ---")
-    balance1 = await client.get_user_balance("test_tg_123")
+    balance1 = await client.get_user_balance(test_id_new)
     print(balance1)
 
     print("--- Testing get_user_balance (existing) ---")
-    balance2 = await client.get_user_balance("123456789")
+    balance2 = await client.get_user_balance(test_id_existing)
     print(balance2)
+
+    print("--- Testing get_user_balance (non-existent) ---")
+    balance3 = await client.get_user_balance("non_existent_id_12345")
+    print(balance3)
+
 
     await client.close()
 
 if __name__ == "__main__":
+    # Make sure the API server is running before executing this test
+    print("*** Ensure the FastAPI server (main.py) is running! ***")
     asyncio.run(_test_client())

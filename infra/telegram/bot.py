@@ -15,12 +15,11 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 try:
-    from core.entities.user import User
-    # Import the concrete implementation
-    from infra.db.user_repository_impl import SQLiteUserRepository
+    # Import the API Client instead of the repository
+    from infra.api_client.client import ApiClient
 except ImportError as e:
-    logging.error(f"Failed to import core modules: {e}")
-    sys.exit("Error: Could not import necessary core or infra modules.")
+    logging.error(f"Failed to import API client module: {e}")
+    sys.exit("Error: Could not import necessary infra modules.")
 # --- End of new imports ---
 
 
@@ -54,62 +53,66 @@ bot = Bot(token=BOT_TOKEN) # DO NOT ADD STUPID parse_mode
 # Initialize Dispatcher instance
 dp = Dispatcher()
 
-# --- Initialize Repository ---
-# Create an instance of the user repository
-user_repo = SQLiteUserRepository()
+# --- Initialize API Client ---
+# Create an instance of the API client
+# The client will use the API_BASE_URL from environment or default
+api_client = ApiClient()
+
 
 # --- Handlers ---
 
 @dp.message(CommandStart())
 async def handle_start(message: types.Message):
-    """Handler for the /start command. Checks if user exists, adds if not."""
+    """Handler for the /start command. Uses API client to get/create user."""
     telegram_user = message.from_user
     user_name = telegram_user.full_name
     telegram_id = str(telegram_user.id) # Ensure telegram_id is a string
 
     logging.info(f"Received /start command from user: {user_name} (ID: {telegram_id})")
 
-    # Check if user exists
-    # Using the initialized user_repo instance
-    existing_user = user_repo.get_by_telegram_id(telegram_id)
+    try:
+        # Call the API to get or create the user
+        user_data = await api_client.get_or_create_user(telegram_id=telegram_id, name=user_name)
 
-    if existing_user:
-        logging.info(f"User {telegram_id} already exists. Balance: {existing_user.balance}")
+        if user_data:
+            # Assuming the API returns user data including balance
+            balance = user_data.get('balance', 0.0) # Default to 0.0 if balance not in response
+            api_user_name = user_data.get('name', user_name) # Use name from API if available
+
+            logging.info(f"API returned user data for {telegram_id}: {user_data}")
+            await message.answer(
+                f"Hello again, <b>{api_user_name}</b>! 😊\n"
+                f"Your current balance is: ${balance:.2f}"
+            )
+        else:
+            # Handle case where API call fails or returns None
+            logging.error(f"API client failed to get or create user {telegram_id}.")
+            await message.answer(
+                "Sorry, there was an issue accessing your account information. Please try again later. 😥"
+            )
+
+    except Exception as e:
+        # Log the error for debugging
+        logging.exception(f"Error processing /start for user {telegram_id}: {e}")
+        # Inform the user about the error
         await message.answer(
-            f"Welcome back, <b>{user_name}</b>! 😊\n"
-            # Show balance, formatted to 2 decimal places
-            f"Your current balance is: ${existing_user.balance:.2f}"
+            "Sorry, an unexpected error occurred. Please try again later. 😥"
         )
-    else:
-        logging.info(f"User {telegram_id} not found. Creating new user.")
-        # Create new user object (balance defaults to 0.0 in entity)
-        new_user = User(name=user_name, telegram_id=telegram_id)
-        try:
-            # Add user to the database using the repository instance
-            added_user = user_repo.add(new_user)
-            logging.info(f"Successfully added new user: {added_user}")
-            await message.answer(
-                f"Hello, <b>{user_name}</b>! 👋\n"
-                f"Welcome to the Simple Billing LLM Bot. I've created an account for you.\n"
-                # Show starting balance
-                f"Your starting balance is: ${added_user.balance:.2f}"
-            )
-        except Exception as e:
-            # Log the error for debugging
-            logging.error(f"Failed to add user {telegram_id}: {e}")
-            # Inform the user about the error
-            await message.answer(
-                "Sorry, there was an error creating your account. Please try again later. 😥"
-            )
+
 
 # --- Main Function to Start Polling ---
 
 async def main() -> None:
     """Starts the bot polling process."""
     logging.info("Starting bot polling...")
-    # Start polling - continuously checks for new updates from Telegram
-    # skip_updates=True skips updates received while the bot was offline
-    await dp.start_polling(bot, skip_updates=True)
+    try:
+        # Start polling - continuously checks for new updates from Telegram
+        # skip_updates=True skips updates received while the bot was offline
+        await dp.start_polling(bot, skip_updates=True)
+    finally:
+        # Ensure the API client's session is closed gracefully
+        await api_client.close()
+        logging.info("API Client closed.")
 
 # --- Entry Point ---
 

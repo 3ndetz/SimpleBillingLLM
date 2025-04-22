@@ -1,6 +1,6 @@
-\
 import sqlite3
 import os
+import sys
 
 # Define the path for the SQLite database file relative to the project root
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
@@ -111,26 +111,34 @@ def initialize_database():
 
     # --- Create Indexes ---
     print("Creating indexes...")
-    cursor.execute("CREATE INDEX idx_predictions_user_id ON predictions(user_id);")
-    cursor.execute("CREATE INDEX idx_transactions_user_id ON transactions(user_id);")
-    cursor.execute("CREATE INDEX idx_queue_items_user_id ON queue_items(user_id);")
-    cursor.execute("CREATE INDEX idx_queue_items_status ON queue_items(status);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_name ON models(name);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_predictions_uuid ON predictions(uuid);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_predictions_user_id ON predictions(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_prediction_id ON queue_items(prediction_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_user_id ON queue_items(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_status ON queue_items(status);")
     print("Indexes created.")
 
-    # --- Add Sample Data (Optional) ---
-    print("Adding sample data...")
-    # Add a sample user
-    cursor.execute("INSERT INTO users (name, telegram_id, balance) VALUES (?, ?, ?)",
-                   ('Test User', '123456789', 100.0))
-    print("Added sample user.")
-    # Add a sample model
-    cursor.execute("INSERT INTO models (name, description, input_token_price, output_token_price) VALUES (?, ?, ?, ?)",
-                   ('SimpleModel', 'A basic test model', 0.001, 0.002))
-    print("Added sample model.")
+    # --- Add Default Data (Optional but helpful) ---
+    print("Adding default data (if necessary)...")
+    # Add a default model if none exists
+    cursor.execute("SELECT COUNT(*) FROM models WHERE name = 'dummy-echo-v1'")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO models (name, description, input_token_price, output_token_price, is_active)
+            VALUES (?, ?, ?, ?, ?)
+        """, ('dummy-echo-v1', 'A simple model that echoes input.', 0.001, 0.002, 1))
+        print("Added default model 'dummy-echo-v1'.")
+    else:
+        print("Default model 'dummy-echo-v1' already exists.")
 
+    # Commit changes and close connection
     conn.commit()
     conn.close()
-    print("Database initialized successfully and connection closed.")
+    print("Database initialization complete.")
+
 
 if __name__ == "__main__":
     print("Running database initialization script...")
