@@ -61,34 +61,63 @@ llm_use_cases = LLMUseCases(
 
 # --- API Endpoints ---
 
-@router.post("/predictions/", response_model=PredictionResponse, status_code=202) # 202 Accepted as it's async
-async def create_prediction_endpoint(request: PredictionCreateRequest):
-    """Accepts a prediction request, processes it, and returns the initial prediction details."""
-    logging.info(f"API: Received prediction request for user_id={request.user_id}")
-    try:
-        # Call the use case to handle the prediction creation and processing
-        prediction_result = await llm_use_cases.create_prediction(
-            user_id=request.user_id,
-            input_text=request.input_text
+@router.post(
+    "/predictions/",
+    response_model=PredictionResponse,
+    status_code=202,  # 202 Accepted as it's async
+)
+async def create_prediction_endpoint(
+    request: PredictionCreateRequest,
+) -> PredictionResponse:
+    """
+    Enqueues a prediction request and returns its initial
+    pending details.
+    """
+    logging.info(
+        f"API: Received prediction request for user_id="
+        f"{request.user_id}"
+    )
+    # 1. Verify user exists and has balance
+    user = user_repo.get_by_id(request.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"User with ID {request.user_id} not found."
+            )
         )
-        # Return the completed prediction details
-        # Note: In a truly async system with a queue, this might return the initial
-        # prediction object with status 'pending' or 'queued'.
-        # Since our dummy LLM is fast, we return the completed one.
-        return prediction_result
-    except ValueError as ve:
-        # Handle specific known errors like UserNotFound, InsufficientBalance
-        logging.warning(f"API Validation Error: {ve}")
-        # Determine appropriate status code based on error
-        if "not found" in str(ve).lower():
-            raise HTTPException(status_code=404, detail=str(ve))
-        elif "insufficient balance" in str(ve).lower():
-            raise HTTPException(status_code=402, detail=str(ve)) # 402 Payment Required
-        else:
-            raise HTTPException(status_code=400, detail=str(ve)) # Generic bad request
-    except Exception as e:
-        logging.exception(f"API Error: Failed to create prediction for user_id={request.user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error processing prediction.")
+    if user.balance <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "Insufficient balance to enqueue prediction."
+            )
+        )
+    # 2. Get active model
+    model = model_repo.get_active_model()
+    if not model:
+        raise HTTPException(
+            status_code=503,
+            detail="No active model available."
+        )
+    # 3. Create prediction record with status 'pending'
+    pred = PredictionEntity(
+        user_id=request.user_id,
+        model_id=model.id,
+        input_text=request.input_text,
+        status="pending",
+    )
+    pred = prediction_repo.add(pred)
+    # Enqueue async processing task
+    from infra.queue.tasks import process_prediction
+
+    process_prediction.delay(
+        pred.id,
+        request.user_id,
+        request.input_text,
+    )
+    # Return pending prediction
+    return pred
 
 @router.get("/predictions/{uuid}", response_model=PredictionResponse)
 async def get_prediction_status_endpoint(uuid: str):

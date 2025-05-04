@@ -1,4 +1,6 @@
 data/
+huggingface_cache/
+sandbox.py
 
 *.db
 

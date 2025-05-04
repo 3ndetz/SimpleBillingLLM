@@ -25,40 +25,38 @@ class LLMUseCases:
         self.prediction_repository = prediction_repository
         self.transaction_repository = transaction_repository
 
-    async def create_prediction(self, user_id: int, input_text: str) -> Prediction:
-        """Handles the creation, processing, and billing of a prediction."""
-        logging.info(f"Use Case: Starting prediction for user_id={user_id}")
+    async def create_prediction(self, prediction_id: int, user_id: int, input_text: str) -> Prediction:
+        """Processes an existing prediction (billing, LLM call, status update)."""
+        # 1. Load existing prediction record
+        prediction = self.prediction_repository.get_by_id(prediction_id)
+        if not prediction:
+            logging.error(f"Use Case Error: Prediction not found for id={prediction_id}")
+            raise ValueError(f"Prediction with id {prediction_id} not found.")
+        logging.info(f"Use Case: Starting prediction for id={prediction_id}")
 
-        # 1. Get User
-        user = self.user_repository.get_by_id(user_id)
+        # 2. Get User
+        user = self.user_repository.get_by_id(prediction.user_id)
         if not user:
-            logging.error(f"Use Case Error: User not found for id={user_id}")
-            # In a real app, raise a specific exception (e.g., UserNotFound)
-            raise ValueError(f"User with id {user_id} not found.")
+            logging.error(f"Use Case Error: User not found for id={prediction.user_id}")
+            raise ValueError(f"User with id {prediction.user_id} not found.")
 
-        # 2. Get Active Model (Simplification: use the first active one)
+        # 3. Get Active Model
         model = self.model_repository.get_active_model()
         if not model:
             logging.error("Use Case Error: No active LLM model found.")
             raise ValueError("No active LLM model configured.")
         logging.info(f"Use Case: Using model '{model.name}' (ID: {model.id})")
 
-        # 3. Check Balance (Basic Check - TODO: More robust check needed)
+        # 4. Check Balance
         # For now, let's assume a minimum cost or just check > 0
         if user.balance <= 0:
             logging.warning(f"Use Case Warning: User {user_id} has insufficient balance ({user.balance})")
             # In a real app, raise InsufficientFundsError
             raise ValueError("Insufficient balance to create prediction.")
 
-        # 4. Create Initial Prediction Record
-        prediction = Prediction(
-            user_id=user.id,
-            model_id=model.id,
-            input_text=input_text,
-            status='processing' # Start as processing
-        )
-        prediction = self.prediction_repository.add(prediction)
-        logging.info(f"Use Case: Created initial prediction record (ID: {prediction.id}, UUID: {prediction.uuid})")
+        # 5. Mark prediction as processing
+        prediction.status = 'processing'
+        self.prediction_repository.update(prediction)
         start_time = time.time()
 
         try:
@@ -73,7 +71,7 @@ class LLMUseCases:
             total_cost = input_cost + output_cost
             logging.info(f"Use Case: Calculated cost: {total_cost:.6f}")
 
-            # 7. Update Prediction Record with Results
+            # 6. Update Prediction Record with Results
             prediction.output_text = llm_result['output_text']
             prediction.input_tokens = llm_result['input_tokens']
             prediction.output_tokens = llm_result['output_tokens']
@@ -82,7 +80,7 @@ class LLMUseCases:
             prediction.process_time = process_time_ms
             # completed_at is set automatically by the repository update method
 
-            # 8. Update User Balance & Create Transaction
+            # 7. Update User Balance & Create Transaction
             new_balance = user.balance - total_cost
             if new_balance < 0:
                 # This case should ideally be caught earlier, but handle defensively
@@ -96,9 +94,9 @@ class LLMUseCases:
             else:
                 actual_cost = total_cost
 
-            # Update prediction in DB *before* charging user
+            # Update prediction in DB before charging
             self.prediction_repository.update(prediction)
-            logging.info(f"Use Case: Updated prediction record {prediction.id} to status 'completed'.")
+            logging.info(f"Use Case: Updated prediction record {prediction.id} to 'completed'.")
 
             # Create transaction record
             transaction = Transaction(
@@ -118,8 +116,10 @@ class LLMUseCases:
             return prediction
 
         except Exception as e:
-            # 9. Handle Errors
-            logging.exception(f"Use Case Error: Failed during prediction processing for prediction {prediction.id}: {e}")
+            # 8. Handle Errors
+            logging.exception(
+                f"Use Case Error: Failed during prediction processing for id {prediction.id}: {e}"
+            )
             # Update prediction status to 'failed'
             prediction.status = 'failed'
             # Optionally add error message to output_text or a new field

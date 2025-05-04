@@ -148,3 +148,6 @@ Simpliest user scenarios (reflecting API usage by Bot):
     *   `TransactionUseCases` creates `Transaction` entity.
     *   `TransactionUseCases` calls `TransactionRepository.add(transaction)` (TODO: Needs Transaction repo).
     *   `TransactionRepositoryImpl` saves transaction to `billing_llm.db`.
+
+VARIOUS!
+USE RQ FOR MULTIPLE PREDICTIONS!

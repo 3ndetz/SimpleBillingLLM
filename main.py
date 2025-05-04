@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from fastapi import FastAPI
 from infra.web.controllers.user_controller import router as user_router
 from infra.web.controllers.prediction_controller import router as prediction_router
@@ -22,7 +24,10 @@ app.include_router(prediction_router, prefix="/api/v1", tags=["Predictions"])
 
 
 if __name__ == "__main__":
+    # Starter for the HTTP API only
+    logging.basicConfig(level=logging.DEBUG)
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-    print("Server started at http://127.0.0.1:8000/docs")
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+
 # OR fastapi dev main.py
