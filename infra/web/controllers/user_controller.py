@@ -1,37 +1,12 @@
 import logging
-import os
-import sys
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field  # For request body validation
 
-# --- Start of fix ---
-# Adjust import paths for direct script execution vs. module import
-try:
-    # This works when imported as a module (e.g., by uvicorn)
-    from core.use_cases.user_use_cases import UserUseCases
-    from infra.db.user_repository_impl import SQLiteUserRepository
-    # Rename to avoid conflict
-    from core.entities.user import User as UserEntity
-except ImportError:
-    # This works when run as a script (less common for controllers)
-    # Go up three levels to the project root
-    # (from infra/web/controllers -> infra/web -> infra -> root)
-    project_root = os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-    )
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    from core.use_cases.user_use_cases import UserUseCases
-    from infra.db.user_repository_impl import SQLiteUserRepository
-    # Rename to avoid conflict
-    from core.entities.user import User as UserEntity
-# --- End of fix ---
 
-
-# --- Pydantic Models ---
+from core.use_cases.user_use_cases import UserUseCases
+from infra.db.user_repository_impl import SQLiteUserRepository
+from core.entities.user import User as UserEntity
 
 
 class UserCreateRequest(BaseModel):

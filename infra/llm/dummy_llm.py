@@ -14,8 +14,8 @@ async def dummy_llm_predict(text: str) -> dict:
     output_text = f"Echo: {text}"
 
     # Simulate token calculation (very basic)
-    input_tokens = len(text.split())
-    output_tokens = len(output_text.split())
+    input_tokens = len(text)
+    output_tokens = len(output_text)
 
     return {
         "output_text": output_text,

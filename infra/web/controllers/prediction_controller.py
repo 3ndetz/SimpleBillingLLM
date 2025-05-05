@@ -1,34 +1,15 @@
 # infra/web/controllers/prediction_controller.py
 import logging
-import os
-import sys
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Body
 from pydantic import BaseModel, Field
 
-# Adjust import paths
-try:
-    # Module imports
-    from core.use_cases.llm_use_cases import LLMUseCases
-    from core.entities.prediction import Prediction as PredictionEntity
-    # Import repository implementations to instantiate use cases
-    from infra.db.user_repository_impl import SQLiteUserRepository
-    from infra.db.model_repository_impl import SQLiteModelRepository
-    from infra.db.prediction_repository_impl import SQLitePredictionRepository
-    from infra.db.transaction_repository_impl import SQLiteTransactionRepository
-except ImportError:
-    # Script execution imports
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    from core.use_cases.llm_use_cases import LLMUseCases
-    from core.entities.prediction import Prediction as PredictionEntity
-    from infra.db.user_repository_impl import SQLiteUserRepository
-    from infra.db.model_repository_impl import SQLiteModelRepository
-    from infra.db.prediction_repository_impl import SQLitePredictionRepository
-    from infra.db.transaction_repository_impl import SQLiteTransactionRepository
-
+from core.entities.prediction import Prediction as PredictionEntity
+# Import repository implementations to instantiate use cases
+from infra.db.user_repository_impl import SQLiteUserRepository
+from infra.db.model_repository_impl import SQLiteModelRepository
+from infra.db.prediction_repository_impl import SQLitePredictionRepository
+from infra.db.transaction_repository_impl import SQLiteTransactionRepository
 # --- Pydantic Models ---
 
 class PredictionCreateRequest(BaseModel):
@@ -50,14 +31,6 @@ user_repo = SQLiteUserRepository()
 model_repo = SQLiteModelRepository()
 prediction_repo = SQLitePredictionRepository()
 transaction_repo = SQLiteTransactionRepository()
-
-# Instantiate use cases
-llm_use_cases = LLMUseCases(
-    user_repository=user_repo,
-    model_repository=model_repo,
-    prediction_repository=prediction_repo,
-    transaction_repository=transaction_repo
-)
 
 # --- API Endpoints ---
 
@@ -111,7 +84,7 @@ async def create_prediction_endpoint(
     # Enqueue async processing task
     from infra.queue.tasks import process_prediction
 
-    process_prediction.delay(
+    process_prediction(
         pred.id,
         request.user_id,
         request.input_text,

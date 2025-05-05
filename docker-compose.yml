@@ -8,13 +8,16 @@ services:
   worker:
     image: vllm/vllm-openai:latest
     container_name: llm-worker
+    ports:
+      - "8000:43100"
     environment:
       - REDIS_BROKER_URL=redis://redis:6379/0
       - PYTHONPATH=/workspace
     volumes:
       - ./:/workspace:rw
       - ./data:/workspace/data:rw
-      - ./huggingface_cache:/root/.cache/huggingface
+      - D:/Soft/ComfyUI/models:/workspace/model_weights:rw
+      - D:/Soft/ComfyUI/hf_cache:/root/.cache/huggingface:rw
     working_dir: /workspace
     entrypoint: ["/bin/bash", "-c", "pip install celery redis rq fastapi uvicorn && celery -A llm_worker_start.app worker --loglevel=info"]
     command: []

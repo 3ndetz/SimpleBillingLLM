@@ -1,4 +1,7 @@
 # core/use_cases/llm_use_cases.py
+
+# TODO should divide logic for WORKER and for API!
+# For API we do NOT need load LLMs and llm classes or methods!!!
 import logging
 import time
 from datetime import datetime
@@ -9,7 +12,7 @@ from core.repositories.user_repository import UserRepository
 from core.repositories.model_repository import ModelRepository
 from core.repositories.prediction_repository import PredictionRepository
 from core.repositories.transaction_repository import TransactionRepository
-from infra.llm.dummy_llm import dummy_llm_predict # Import the dummy LLM
+# from infra.llm.gguf_llm import predict  # MOVED TO BOTTOM! NEED OTHER LOGIC!
 
 class LLMUseCases:
     def __init__(
@@ -24,10 +27,11 @@ class LLMUseCases:
         self.model_repository = model_repository
         self.prediction_repository = prediction_repository
         self.transaction_repository = transaction_repository
-
+        
     async def create_prediction(self, prediction_id: int, user_id: int, input_text: str) -> Prediction:
         """Processes an existing prediction (billing, LLM call, status update)."""
         # 1. Load existing prediction record
+        
         prediction = self.prediction_repository.get_by_id(prediction_id)
         if not prediction:
             logging.error(f"Use Case Error: Prediction not found for id={prediction_id}")
@@ -60,8 +64,9 @@ class LLMUseCases:
         start_time = time.time()
 
         try:
+            from infra.llm.gguf_llm import predict
             # 5. Call the LLM (Dummy Implementation)
-            llm_result = await dummy_llm_predict(input_text)
+            llm_result = await predict(input_text)
             process_time_ms = int((time.time() - start_time) * 1000)
             logging.info(f"Use Case: Dummy LLM returned: {llm_result}")
 
