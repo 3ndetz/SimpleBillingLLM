@@ -44,12 +44,40 @@ Simple per-token billing LLM service with telegram bot interface.
 
 Current pipeline working on Python 3.10.9
 
-1. Create virtual env
+1. Create inner app virtual env
 
-```bash
-pip install uv
-uv pip install -r pyproject.toml
-```
+    ```bash
+    pip install uv
+    uv pip install -r pyproject.toml
+    ```
+
+2. Run backend
+
+    ```bash
+    docker-compose up --build
+    ```
+
+3. Run client applications
+
+    Before run any client applications, ensure backend containers is running.
+
+    1. Telegram bot
+
+        ```bash
+        python tg_bot_start.py
+        ```
+
+    2. HTTP API
+
+        ```bash
+        python main.py
+        ```
+
+    3. Streamlit app above HTTP API
+
+        ```bash
+        streamlit run streamlit_app.py
+        ```
 
 ## Layers description
 

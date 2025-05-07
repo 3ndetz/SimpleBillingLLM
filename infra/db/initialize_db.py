@@ -38,6 +38,8 @@ def initialize_database():
         name TEXT NOT NULL,                     -- имя пользователя из телеграма
         telegram_id TEXT UNIQUE,                -- ID пользователя из телеграма
         balance REAL DEFAULT 0.0 NOT NULL,      -- текущий баланс пользователя
+        password_hash TEXT,                     -- hashed password for HTTP API login
+        api_key TEXT,                           -- API key for prediction endpoint
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)

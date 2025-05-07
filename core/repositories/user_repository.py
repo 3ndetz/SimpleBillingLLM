@@ -64,3 +64,53 @@ class UserRepository(ABC):
             List[User]: A list of all user entities.
         """
         pass
+
+    @abstractmethod
+    def get_by_name(self, name: str) -> Optional[User]:
+        """Retrieves a user by their name.
+
+        Args:
+            name (str): The name of the user to retrieve.
+
+        Returns:
+            Optional[User]: The user entity if found, otherwise None.
+        """
+        pass
+
+    @abstractmethod
+    def update_password_hash(self, user_id: int, password_hash: str) -> bool:
+        """Updates the password_hash for a specific user.
+
+        Args:
+            user_id (int): The ID of the user.
+            password_hash (str): The new password hash.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def update_api_key(self, user_id: int, api_key: str) -> bool:
+        """Updates the api_key for a specific user.
+
+        Args:
+            user_id (int): The ID of the user.
+            api_key (str): The new API key.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def get_by_api_key(self, api_key: str) -> Optional[User]:
+        """Retrieves a user by their API key.
+
+        Args:
+            api_key (str): The API key of the user to retrieve.
+
+        Returns:
+            Optional[User]: The user entity if found, otherwise None.
+        """
+        pass

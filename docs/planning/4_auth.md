@@ -10,12 +10,11 @@
 
 ### User Authentication (Register and Login)
 
-1. Implement POST /register and POST /login endpoints in `web/controllers/auth_controller.py`.
-2. On registration:
-   - Validate email and password payload.
+1. On registration (user create):
+   - Validate password payload.
    - Hash password using `passlib` (e.g. `CryptContext(schemes=["bcrypt"])`) in `core/security/password_utils.py`.
    - Store `password_hash` in `core/entities/user.py` via `infra/db/user_repository_impl.py`.
-3. On login:
+2. On login:
    - Retrieve user by email using `core/repositories/user_repository.py`.
    - Verify password with `password_utils.verify`.
 
@@ -38,7 +37,6 @@
 - Update `core/entities/user.py` to include `password_hash` and `api_key`.
 - Update `infra/db/initialize_db.py` to alter user table.
 - Update `infra/db/user_repository_impl.py` to handle `password_hash` and `api_key`.
-- Update `core/use_cases/user_use_cases.py` with register/login and key generation logic.
 - Create `web/controllers/auth_controller.py` endpoints.
 - Update `web/controllers/prediction_controller.py` to enforce API key header.
 
@@ -48,7 +46,8 @@
 - [ ] Update database schema and migration for user table.
 - [ ] Implement repository updates in `infra/db/user_repository_impl.py`.
 - [ ] Implement business logic in `core/use_cases/user_use_cases.py`.
-- [ ] Add Auth controller with `/register`, `/login`, `/apikey`.
+- [ ] Add to tg bot api key command.
+- [ ] (Optional) Simple app for http web integration (may be in streamlit).
 - [ ] Secure `/predict` with API key validation.
 - [ ] Write unit tests for:
     - Registration and login flows.

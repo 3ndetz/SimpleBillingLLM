@@ -2,6 +2,7 @@ from typing import Optional
 
 from core.entities.user import User
 from core.repositories.user_repository import UserRepository
+from core.security.password_utils import hash_password
 
 
 class UserUseCases:
@@ -12,7 +13,8 @@ class UserUseCases:
     # Keep the original register_user in case it's needed elsewhere,
     # but it needs fixing
     # def register_user(self, name: str, email: str):
-    #     # Assuming email might be used later or for other registration methods
+    #     # Assuming email might be used later or for other
+    #     # registration methods
     #     # NOTE: The User entity doesn't currently have an email field.
     #     # NOTE: UserRepository interface uses 'add', not 'save'.
     #     user = User(name=name) # Cannot add email here yet
@@ -67,3 +69,22 @@ class UserUseCases:
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Gets a user by their internal database ID."""
         return self.user_repository.get_by_id(user_id)
+
+    def get_user_by_name(self, name: str) -> Optional[User]:
+        """Gets a user by their name."""
+        return self.user_repository.get_by_name(name)
+
+    def get_or_create_user(self, name: str, password: str) -> User:
+        """Gets a user by name, creating them if they don't exist."""
+        existing_user = self.user_repository.get_by_name(name)
+        if existing_user:
+            # Optionally verify password here if needed
+            return existing_user
+        else:
+            # Create a new user if not found
+            new_user = User(
+                name=name,
+                password_hash=hash_password(password)
+            )
+            added_user = self.user_repository.add(new_user)
+            return added_user

@@ -1,5 +1,5 @@
 # core/entities/user.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
@@ -11,7 +11,9 @@ class User(BaseModel):
     telegram_id: Optional[str] = None # Unique Telegram User ID
     balance: float = 0.0 # User's current balance
     created_at: Optional[datetime] = None # Timestamp of user creation
-    updated_at: Optional[datetime] = None # Timestamp of last update
+    updated_at: Optional[datetime] = None  # Timestamp of last update
+    password_hash: Optional[str] = None  # Hashed password for HTTP API login
+    api_key: Optional[str] = None  # API key for prediction endpoint
 
     # Add Pydantic config if needed for ORM mode or other features later
     # class Config:
