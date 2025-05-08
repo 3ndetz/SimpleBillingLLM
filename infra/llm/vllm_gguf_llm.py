@@ -1,4 +1,10 @@
-# infra/llm/gguf_llm.py
+# infra/llm/vllm_gguf_llm.py
+"""
+VLLM GGUF LLM
+vLLM too bad for gguf's...
+Much consuming memory
+"""
+
 import os
 from vllm import LLM, SamplingParams
 

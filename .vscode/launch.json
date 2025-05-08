@@ -6,9 +6,9 @@
     "configurations": [
         {
             "name": "Run Streamlit App",
-            "type": "debugpy",
+            "type": "streamlit",
             "request": "launch",
-            "program": "streamlit run ${workspaceFolder}/streamlit_app.py",
+            "program": "run ${workspaceFolder}/streamlit_app.py",
             "console": "integratedTerminal"
         },
         {

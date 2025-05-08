@@ -15,5 +15,6 @@ dependencies = [
     "streamlit",
     "requests",
     "passlib",
-    "bcrypt"
+    "bcrypt",
+    "psycopg2-binary"
 ]

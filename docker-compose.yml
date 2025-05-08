@@ -1,4 +1,17 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=billing_llm_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
   redis:
     image: redis:7.2-alpine
     container_name: redis
@@ -9,20 +22,27 @@ services:
     image: vllm/vllm-openai:latest
     container_name: llm-worker
     ports:
-      - "8000:43100"
+      - "8000:43100" # Assuming this is the vLLM port, not the app's direct port
     environment:
       - REDIS_BROKER_URL=redis://redis:6379/0
       - PYTHONPATH=/workspace
+      # Add PostgreSQL connection details for the worker
+      - DB_HOST=postgres_db
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - DB_NAME=billing_llm_db
     volumes:
       - ./:/workspace:rw
       - ./data:/workspace/data:rw
       - D:/Soft/ComfyUI/models:/workspace/model_weights:rw
       - D:/Soft/ComfyUI/hf_cache:/root/.cache/huggingface:rw
     working_dir: /workspace
-    entrypoint: ["/bin/bash", "-c", "pip install celery redis rq fastapi uvicorn && celery -A llm_worker_start.app worker --loglevel=info"]
+    entrypoint: ["/bin/bash", "-c", "pip install celery redis rq fastapi uvicorn psycopg2-binary && celery -A llm_worker_start.app worker --loglevel=info"]
     command: []
     depends_on:
       - redis
+      - postgres # Add dependency on postgres
     deploy:
       resources:
         reservations:
@@ -30,3 +50,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+volumes: # Add a named volume for postgres data persistence
+  postgres_data:

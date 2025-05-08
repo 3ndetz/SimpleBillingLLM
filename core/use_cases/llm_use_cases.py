@@ -4,7 +4,7 @@
 # For API we do NOT need load LLMs and llm classes or methods!!!
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone # Ensure timezone is imported
 
 from core.entities.prediction import Prediction
 from core.entities.transaction import Transaction
@@ -60,11 +60,36 @@ class LLMUseCases:
 
         # 5. Mark prediction as processing
         prediction.status = 'processing'
+        # Calculate queue_time before updating with 'processing' status
+        if prediction.created_at:
+            start_processing_time_utc = datetime.now(timezone.utc)
+
+            # Ensure prediction.created_at is UTC
+            if prediction.created_at.tzinfo is None:
+                # If naive, assume it's UTC and make it aware
+                created_at_utc = prediction.created_at.replace(tzinfo=timezone.utc)
+            else:
+                # If aware, convert to UTC
+                created_at_utc = prediction.created_at.astimezone(timezone.utc)
+            
+            queue_duration = start_processing_time_utc - created_at_utc
+            # Convert duration to milliseconds
+            prediction.queue_time = int(queue_duration.total_seconds() * 1000)
+        else:
+            # Fallback if created_at is somehow not set
+            logging.warning(
+                f"Prediction ID {prediction.id} missing created_at "
+                f"for queue_time calculation."
+            )
+            prediction.queue_time = None
+
+        # Update with status 'processing' and calculated queue_time
         self.prediction_repository.update(prediction)
-        start_time = time.time()
+        
+        start_time = time.time()  # For process_time calculation
 
         try:
-            from infra.llm.gguf_llm import predict
+            from infra.llm.openai_llm import predict
             # 5. Call the LLM (Dummy Implementation)
             llm_result = await predict(input_text)
             process_time_ms = int((time.time() - start_time) * 1000)
@@ -83,52 +108,67 @@ class LLMUseCases:
             prediction.total_cost = total_cost
             prediction.status = 'completed'
             prediction.process_time = process_time_ms
-            # completed_at is set automatically by the repository update method
+            prediction.completed_at = datetime.now(timezone.utc)  # Set completed_at as UTC
+            # Original comment below is now addressed by the line above
+            # completed_at is set automatically by the repository update method # TODO NEED TEST
 
             # 7. Update User Balance & Create Transaction
             new_balance = user.balance - total_cost
             if new_balance < 0:
-                # This case should ideally be caught earlier, but handle defensively
-                logging.warning(f"Use Case Warning: Prediction cost ({total_cost}) exceeds balance ({user.balance}) for user {user_id}. Setting balance to 0.")
-                # Decide policy: allow negative balance or cap at 0?
-                # For simplicity, let's not allow negative balance from prediction cost
-                actual_cost = user.balance # Charge only what they have
+                # This case should ideally be caught earlier,
+                # but handle defensively
+                logging.warning(
+                    f"Use Case Warning: User {user_id} balance "
+                    f"({user.balance}) insufficient for cost ({total_cost}). "
+                    f"Setting balance to 0."
+                )
+                # For simplicity, cap at 0
+                actual_cost = user.balance  # Charge only what they have
                 new_balance = 0.0
-                prediction.total_cost = actual_cost # Adjust prediction cost recorded
-                # Optionally, mark prediction as partially failed due to funds?
+                # Adjust prediction cost recorded
+                prediction.total_cost = actual_cost
             else:
                 actual_cost = total_cost
 
             # Update prediction in DB before charging
             self.prediction_repository.update(prediction)
-            logging.info(f"Use Case: Updated prediction record {prediction.id} to 'completed'.")
+            logging.info(
+                f"Use Case: Updated prediction record {prediction.id} to 'completed'."
+            )
 
             # Create transaction record
             transaction = Transaction(
                 user_id=user.id,
-                amount=-actual_cost, # Cost is negative amount
+                amount=-actual_cost,  # Cost is negative amount
                 description=f"Cost for prediction {prediction.uuid}",
                 prediction_id=prediction.id
             )
             self.transaction_repository.add(transaction)
-            logging.info(f"Use Case: Created transaction record for prediction {prediction.id}")
+            logging.info(
+                f"Use Case: Created transaction for prediction {prediction.id}"
+            )
 
             # Update user's balance in DB
             self.user_repository.update_balance(user.id, new_balance)
-            logging.info(f"Use Case: Updated balance for user {user.id} to {new_balance:.2f}")
-            user.balance = new_balance # Update user entity in memory
+            logging.info(
+                f"Use Case: Updated balance for user {user.id} to {new_balance:.2f}"
+            )
+            user.balance = new_balance  # Update user entity in memory
 
             return prediction
 
         except Exception as e:
             # 8. Handle Errors
             logging.exception(
-                f"Use Case Error: Failed during prediction processing for id {prediction.id}: {e}"
+                f"Use Case Error: Failed during prediction processing for "
+                f"id {prediction.id}: {e}"
             )
             # Update prediction status to 'failed'
             prediction.status = 'failed'
+            # Also set completed_at on failure as UTC
+            prediction.completed_at = datetime.now(timezone.utc)
             # Optionally add error message to output_text or a new field
             prediction.output_text = f"Error: {e}"
             self.prediction_repository.update(prediction)
             # Do not charge the user if the process failed
-            raise # Re-raise the exception to be handled by the controller
+            raise  # Re-raise the exception

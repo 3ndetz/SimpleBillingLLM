@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field  # For request body validation
 
 
 from core.use_cases.user_use_cases import UserUseCases
-from infra.db.user_repository_impl import SQLiteUserRepository
+from infra.db.user_repository_impl import PostgreSQLUserRepository
 from core.entities.user import User as UserEntity
 
 
@@ -32,7 +32,7 @@ class BalanceResponse(BaseModel):
 # --- Router Setup ---
 router = APIRouter()
 # Initialize repository and use cases
-user_repository = SQLiteUserRepository()
+user_repository = PostgreSQLUserRepository()
 user_use_cases = UserUseCases(user_repository)
 
 

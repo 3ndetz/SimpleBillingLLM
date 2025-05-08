@@ -1,149 +1,252 @@
-import sqlite3
+import psycopg2
 import os
 import sys
+from psycopg2.extras import DictCursor  # For dictionary-like row access
 
-# Define the path for the SQLite database file relative to the project root
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
-DB_PATH = os.path.join(DB_DIR, 'billing_llm.db')
+# Environment variables for PostgreSQL connection
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "admin")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "admin")
+DB_NAME = os.getenv("DB_NAME", "billing_llm_db")
+
+# Define the DSN (Data Source Name) for PostgreSQL
+DSN = (
+    f"host={DB_HOST} port={DB_PORT} user={DB_USER} "
+    f"password={DB_PASSWORD} dbname={DB_NAME}"
+)
+
+
+def get_db_connection():
+    """Establishes a connection to the PostgreSQL database."""
+    conn = psycopg2.connect(DSN)
+    # conn.autocommit = False  # Default is False
+    return conn
+
 
 def initialize_database():
     """
-    Initializes the SQLite database by creating tables based on the DDL schema.
-    Creates the data directory if it doesn't exist.
+    Initializes the PostgreSQL database by creating tables based on the DDL
+    schema.
     """
-    print(f"Ensuring database directory exists at: {DB_DIR}")
-    os.makedirs(DB_DIR, exist_ok=True) # Create the data directory if it doesn't exist
+    print(
+        f"Connecting to PostgreSQL: dbname='{DB_NAME}' user='{DB_USER}' "
+        f"host='{DB_HOST}' port='{DB_PORT}'"
+    )
+    conn = None
+    cursor = None  # Initialize cursor to None for finally block
+    try:
+        conn = get_db_connection()
+        # Use DictCursor for dictionary-like row access
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        print("PostgreSQL database connection established.")
 
-    print(f"Connecting to database at: {DB_PATH}")
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    print("Database connection established.")
+        print("Dropping existing tables (if any)...")
+        cursor.execute("DROP TABLE IF EXISTS transactions CASCADE;")
+        cursor.execute("DROP TABLE IF EXISTS predictions CASCADE;")
+        cursor.execute("DROP TABLE IF EXISTS models CASCADE;")
+        cursor.execute("DROP TABLE IF EXISTS users CASCADE;")
+        print("Existing tables dropped.")
 
-    # Drop existing tables if they exist (for clean initialization during development)
-    # In a production scenario, you'd use migrations.
-    print("Dropping existing tables (if any)...")
-    cursor.execute("DROP TABLE IF EXISTS queue_items;")
-    cursor.execute("DROP TABLE IF EXISTS transactions;")
-    cursor.execute("DROP TABLE IF EXISTS predictions;")
-    cursor.execute("DROP TABLE IF EXISTS models;")
-    cursor.execute("DROP TABLE IF EXISTS users;")
-    print("Existing tables dropped.")
-
-    print("Creating new tables...")
-    # --- Create Tables ---
-    # users table
-    cursor.execute("""
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,                     -- имя пользователя из телеграма
-        telegram_id TEXT UNIQUE,                -- ID пользователя из телеграма
-        balance REAL DEFAULT 0.0 NOT NULL,      -- текущий баланс пользователя
-        password_hash TEXT,                     -- hashed password for HTTP API login
-        api_key TEXT,                           -- API key for prediction endpoint
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-    print("Created 'users' table.")
-
-    # models table
-    cursor.execute("""
-    CREATE TABLE models (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,              -- название модели
-        description TEXT,                       -- описание модели
-        input_token_price REAL NOT NULL,        -- цена за входной токен
-        output_token_price REAL NOT NULL,       -- цена за выходной токен
-        is_active BOOLEAN DEFAULT TRUE          -- активна ли модель
-    );
-    """)
-    print("Created 'models' table.")
-
-    # predictions table
-    cursor.execute("""
-    CREATE TABLE predictions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        uuid TEXT UNIQUE NOT NULL,              -- уникальный идентификатор предсказания
-        user_id INTEGER NOT NULL,               -- ID пользователя
-        model_id INTEGER NOT NULL,              -- ID модели
-        input_text TEXT NOT NULL,               -- входной текст
-        output_text TEXT,                       -- текст предсказания
-        input_tokens INTEGER,                   -- количество входных токенов
-        output_tokens INTEGER,                  -- количество выходных токенов
-        total_cost REAL,                        -- полная стоимость
-        status TEXT NOT NULL,                   -- статус: pending, processing, completed, failed
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
-        queue_time INTEGER,                     -- время в очереди в миллисекундах
-        process_time INTEGER,                   -- время обработки в миллисекундах
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (model_id) REFERENCES models(id)
-    );
-    """)
-    print("Created 'predictions' table.")
-
-    # transactions table
-    cursor.execute("""
-    CREATE TABLE transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,               -- ID пользователя
-        amount REAL NOT NULL,                   -- сумма транзакции (положительная - пополнение, отрицательная - списание)
-        description TEXT,                       -- описание транзакции
-        prediction_id INTEGER,                  -- ссылка на предсказание (если транзакция связана с предсказанием)
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (prediction_id) REFERENCES predictions(id)
-    );
-    """)
-    print("Created 'transactions' table.")
-
-    # queue_items table
-    cursor.execute("""
-    CREATE TABLE queue_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        prediction_id INTEGER UNIQUE NOT NULL,  -- ID предсказания
-        user_id INTEGER NOT NULL,               -- ID пользователя
-        priority INTEGER DEFAULT 0,             -- приоритет в очереди
-        status TEXT NOT NULL,                   -- статус: waiting, processing, completed, canceled
-        queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (prediction_id) REFERENCES predictions(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-    """)
-    print("Created 'queue_items' table.")
-
-    # --- Create Indexes ---
-    print("Creating indexes...")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_name ON models(name);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_predictions_uuid ON predictions(uuid);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_predictions_user_id ON predictions(user_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_prediction_id ON queue_items(prediction_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_user_id ON queue_items(user_id);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_queue_items_status ON queue_items(status);")
-    print("Indexes created.")
-
-    # --- Add Default Data (Optional but helpful) ---
-    print("Adding default data (if necessary)...")
-    # Add a default model if none exists
-    cursor.execute("SELECT COUNT(*) FROM models WHERE name = 'dummy-echo-v1'")
-    if cursor.fetchone()[0] == 0:
+        print("Creating new tables...")
+        # --- Create Tables ---
+        # users table
         cursor.execute("""
-            INSERT INTO models (name, description, input_token_price, output_token_price, is_active)
-            VALUES (?, ?, ?, ?, ?)
-        """, ('dummy-echo-v1', 'A simple model that echoes input.', 0.001, 0.002, 1))
-        print("Added default model 'dummy-echo-v1'.")
-    else:
-        print("Default model 'dummy-echo-v1' already exists.")
+        CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            telegram_id TEXT UNIQUE,
+            balance REAL DEFAULT 0.0 NOT NULL,
+            password_hash TEXT,
+            api_key TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        print("Created 'users' table.")
 
-    # Commit changes and close connection
-    conn.commit()
-    conn.close()
-    print("Database initialization complete.")
+        # models table
+        cursor.execute("""
+        CREATE TABLE models (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            input_token_price REAL NOT NULL,
+            output_token_price REAL NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        );
+        """)
+        print("Created 'models' table.")
+
+        # predictions table
+        cursor.execute("""
+        CREATE TABLE predictions (
+            id SERIAL PRIMARY KEY,
+            uuid TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            model_id INTEGER NOT NULL,
+            input_text TEXT NOT NULL,
+            output_text TEXT,
+            input_tokens INTEGER,
+            output_tokens INTEGER,
+            total_cost REAL,
+            status TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP WITH TIME ZONE,
+            queue_time INTEGER,
+            process_time INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE RESTRICT
+        );
+        """)
+        print("Created 'predictions' table.")
+
+        # transactions table
+        cursor.execute("""
+        CREATE TABLE transactions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            description TEXT,
+            prediction_id INTEGER,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (prediction_id)
+                REFERENCES predictions(id) ON DELETE SET NULL
+        );
+        """)
+        print("Created 'transactions' table.")
+
+        # --- Create Indexes ---
+        print("Creating indexes...")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_telegram_id "
+            "ON users(telegram_id);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_models_name ON models(name);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_predictions_uuid "
+            "ON predictions(uuid);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_predictions_user_id "
+            "ON predictions(user_id);"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_user_id "
+            "ON transactions(user_id);"
+        )
+        print("Indexes created.")
+
+        # --- Add Default Data (Optional but helpful) ---
+        print("Adding default data (if necessary)...")
+        cursor.execute(
+            "SELECT COUNT(*) FROM models WHERE name = %s", ('dummy-echo-v1',)
+        )
+        # Access by index for COUNT(*)
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT INTO models (
+                    name, description, input_token_price,
+                    output_token_price, is_active
+                )
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                'dummy-echo-v1',
+                'A simple model that echoes input.',
+                0.001,
+                0.002,
+                True
+            ))
+            print("Added default model 'dummy-echo-v1'.")
+        else:
+            print("Default model 'dummy-echo-v1' already exists.")
+
+        # --- Add Default User (admin) ---
+        print("Adding default user 'admin' (if necessary)...")
+        cursor.execute(
+            "SELECT COUNT(*) FROM users WHERE name = %s", ('admin',)
+        )
+        if cursor.fetchone()[0] == 0:
+            # Hash the password for the admin user
+            # IMPORTANT: In a real app, use a secure random password
+            # and consider where this logic best resides.
+            # For now, directly using the utility.
+            # You'll need to ensure core.security.password_utils
+            # is accessible here or replicate hashing.
+            # This example assumes direct access for simplicity of this script.
+            try:
+                from core.security.password_utils import hash_password
+                admin_password_hash = hash_password("admin_password")
+            except ImportError:
+                # Fallback or raise error if module not found
+                # For this script, we might just use a placeholder
+                # if direct import is an issue during init
+                print(
+                    "Warning: core.security.password_utils not found, "
+                    "using placeholder for password hash."
+                )
+                admin_password_hash = "placeholder_hash"  # Not secure!
+
+            # Generate a secure API key
+            import secrets
+            admin_api_key = secrets.token_hex(32)
+
+            cursor.execute("""
+                INSERT INTO users (
+                    name, balance, password_hash, api_key, telegram_id
+                )
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                'admin',
+                1000.0,
+                admin_password_hash,
+                admin_api_key,
+                None  # Admin user might not have a Telegram ID
+            ))
+            print(
+                "Added default user 'admin' with balance 1000, "
+                "hashed password, and API key."
+            )
+        else:
+            print("Default user 'admin' already exists.")
+
+        conn.commit()
+        print("Database initialization complete and changes committed.")
+    except psycopg2.Error as e:
+        print(f"PostgreSQL Error during initialization: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    except Exception as e:
+        print(f"An unexpected error occurred during initialization: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if cursor:  # Ensure cursor exists before trying to close
+            cursor.close()
+        if conn:
+            conn.close()
+            print("PostgreSQL connection closed.")
 
 
 if __name__ == "__main__":
-    print("Running database initialization script...")
-    initialize_database()
-    print("Script finished.")
+    # This might be needed if core/infra paths are not set up in PYTHONPATH
+    # for direct script execution
+    project_root_for_test = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    if project_root_for_test not in sys.path:
+        sys.path.insert(0, project_root_for_test)
+        print(
+            f"Added {project_root_for_test} to sys.path for script execution"
+        )
 
+    print("Running database initialization script for PostgreSQL...")
+    try:
+        initialize_database()
+        print("PostgreSQL Script finished successfully.")
+    except Exception as e:
+        print(f"Failed to initialize PostgreSQL database: {e}")

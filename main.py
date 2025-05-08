@@ -5,10 +5,11 @@ from infra.web.controllers.user_controller import router as user_router
 from infra.web.controllers.prediction_controller import router as prediction_router
 from infra.web.controllers.auth_controller import router as auth_router
 
-app = FastAPI(debug=True,
-              title="SimpleBillingLLM API",
-              version="0.0.1",
-              description="Telegram billing LLM",
+app = FastAPI(
+    debug=True,
+    title="SimpleBillingLLM API",
+    version="0.0.1",
+    description="Telegram billing LLM",
 )
 
 
@@ -16,9 +17,11 @@ app = FastAPI(debug=True,
 def health():
     return "ok"
 
+
 @app.get("/version")
 def version():
     return app.version
+
 
 app.include_router(user_router, prefix="/api/v1", tags=["Users"])
 app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])

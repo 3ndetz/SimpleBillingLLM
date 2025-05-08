@@ -5,12 +5,12 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
 from core.security.password_utils import hash_password, verify_password
-from infra.db.user_repository_impl import SQLiteUserRepository
+from infra.db.user_repository_impl import PostgreSQLUserRepository
 from core.entities.user import User as UserEntity
 
 router = APIRouter()
 security = HTTPBasic()
-repo = SQLiteUserRepository()
+repo = PostgreSQLUserRepository()
 
 class SetPasswordRequest(BaseModel):
     """Request model for changing user password, requires old and new passwords."""
